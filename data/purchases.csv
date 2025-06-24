@@ -1,0 +1,7 @@
+timestamp,user_id,product_id,product_name,category,payment_method,quantity,price
+2023-01-01T10:00:00Z,1,101,TShirt Men,men,upi,2,20
+2023-01-01T11:00:00Z,2,102,Jeans Women,women,credit_card,1,40
+2023-01-02T09:30:00Z,1,103,Kids Shoes,kids,wallet,1,30
+2023-01-02T12:00:00Z,3,101,TShirt Men,men,upi,1,20
+2023-01-03T14:00:00Z,2,104,Women Jacket,women,credit_card,3,60
+2023-01-04T16:30:00Z,4,105,Kids Hat,kids,wallet,2,15
