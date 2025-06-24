@@ -1,61 +1,21 @@
-import pandas as pd
 from pathlib import Path
+from pyspark.sql import SparkSession
+
+from .ingestion import load_purchases
+from .transformation import clean, add_revenue
+from .kpis import top_products, revenue_by_category, user_behavior
 
 
-def load_data(path: Path) -> pd.DataFrame:
-    """Load purchase data from a CSV file."""
-    df = pd.read_csv(path, parse_dates=['timestamp'])
-    return df
-
-
-def clean_data(df: pd.DataFrame) -> pd.DataFrame:
-    """Clean purchase data."""
-    df = df.drop_duplicates()
-    df['category'] = df['category'].str.lower()
-    df['payment_method'] = df['payment_method'].str.lower()
-    return df
-
-
-def transform_data(df: pd.DataFrame) -> pd.DataFrame:
-    """Add revenue column and other derived fields."""
-    df['revenue'] = df['quantity'] * df['price']
-    return df
-
-
-def kpi_top_products(df: pd.DataFrame, top_n: int = 3) -> pd.DataFrame:
-    """Return top selling products by revenue."""
-    return (
-        df.groupby(['product_id', 'product_name'])['revenue']
-        .sum()
-        .sort_values(ascending=False)
-        .head(top_n)
-        .reset_index()
-    )
-
-
-def kpi_revenue_by_category(df: pd.DataFrame) -> pd.DataFrame:
-    """Return total revenue for each product category."""
-    return df.groupby('category')['revenue'].sum().reset_index()
-
-
-def kpi_user_behavior(df: pd.DataFrame) -> pd.DataFrame:
-    """Return purchase counts and revenue per user."""
-    return (
-        df.groupby('user_id')
-        .agg(total_purchases=('quantity', 'sum'), total_revenue=('revenue', 'sum'))
-        .reset_index()
-    )
-
-
-def run_pipeline(path: Path) -> dict:
-    """Execute data analytics pipeline and return KPIs."""
-    df = load_data(path)
-    df = clean_data(df)
-    df = transform_data(df)
+def run_pipeline(path: Path, spark: SparkSession | None = None) -> dict:
+    """Execute data analytics pipeline and return KPIs as DataFrames."""
+    spark = spark or SparkSession.builder.appName("analytics").getOrCreate()
+    df = load_purchases(spark, path)
+    df = clean(df)
+    df = add_revenue(df)
     return {
-        'top_products': kpi_top_products(df),
-        'revenue_by_category': kpi_revenue_by_category(df),
-        'user_behavior': kpi_user_behavior(df),
+        "top_products": top_products(df),
+        "revenue_by_category": revenue_by_category(df),
+        "user_behavior": user_behavior(df),
     }
 
 
@@ -66,7 +26,12 @@ if __name__ == "__main__":
     parser.add_argument("--file", type=Path, default=Path("data/purchases.csv"))
     args = parser.parse_args()
 
-    kpis = run_pipeline(args.file)
-    print("Top products:\n", kpis['top_products'])
-    print("\nRevenue by category:\n", kpis['revenue_by_category'])
-    print("\nUser behavior:\n", kpis['user_behavior'])
+    spark = SparkSession.builder.master("local[*]").appName("analytics").getOrCreate()
+    kpis = run_pipeline(args.file, spark)
+    print("Top products:")
+    kpis["top_products"].show()
+    print("\nRevenue by category:")
+    kpis["revenue_by_category"].show()
+    print("\nUser behavior:")
+    kpis["user_behavior"].show()
+    spark.stop()
